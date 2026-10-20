@@ -1,0 +1,29 @@
+# Python環境・キャッシュ
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ローカル運用データ
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# PlatformIO・IDE生成物
+.pio/
+.vscode/
+.idea/
+
+# ローカル設定・ログ・古いソースアーカイブ
+.env
+.env.*
+!.env.example
+*.log
+/rfid_phase5_source.zip
