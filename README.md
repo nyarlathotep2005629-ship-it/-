@@ -136,7 +136,7 @@ ArduinoからPCへ送信する行はLF終端です。
 
 PCから`HELLO`とLFを受信すると、初期化成功時だけ`READY`を返信します。初期化失敗時は`ERR:RFID_INIT`を返信し、`READY`は送信しません。
 
-UIDは4・7・10バイトに対応し、各バイトを大文字16進数2桁で出力します。例：`04A1B2C3`。
+UIDは4・7・10バイトに対応し、各バイトを大文字16進数2桁で出力します。具体的なカードUIDは公開しません。
 
 ### RC522配線と電源上の注意
 
@@ -160,3 +160,96 @@ RC522 ICや多くのモジュールは3.3V系ですが、モジュールごと�
 PC側は`.venv`内のpySerial 3.5を使用します。Arduinoのポートオープン後、残留入力を破棄して起動通知を待ち、必要に応じて`HELLO\n`を送信して`READY\n`を確認します。`READY`確認前のUID、64バイト超過行、ASCII以外の行、不正UID、仕様外メッセージは出席登録へ渡しません。
 
 ユーザー確認ではCOMポート経由の`READY`応答とUID通信を確認しています。USB抜去、通信切断、再接続、Arduino自動リセット後の復旧、RC522の電源・信号電圧は未検証です。
+
+## Web版（React + TypeScript + FastAPI）
+
+既存のCUI・SQLiteスキーマ・Arduino/PlatformIOプロジェクトを変更せず、Windowsローカルで操作できるWeb UIを`web`配下に追加しています。Web版も既存の`attendance.db`を使用しますが、ブラウザからSQLiteへ直接接続せず、FastAPI経由でアクセスします。
+
+### 開発状況：Web版プロトタイプ（試作段階）
+
+React + TypeScript + FastAPIを使用したWeb管理画面を実装しています。
+
+Windows上でバックエンド・フロントエンドの起動、およびダッシュボードの表示を確認しています。
+
+ただし、現時点ではワンボタン起動・ワンクリック起動には対応していません。バックエンドとフロントエンドをそれぞれPowerShellから起動する必要があります。
+
+Web画面を通じた全業務フローの受入試験、およびWeb版とRFID実機を組み合わせた結合試験は未完了です。
+
+そのため、現時点では本番運用を想定した完成版ではありません。
+
+### Web版の対象機能
+
+- ダッシュボード
+- 学生の手動登録、RFIDカードを使った登録
+- 授業登録、履修登録・解除
+- 授業回の開始、MOCK/SERIAL出席受付、停止、受付終了
+- 出欠履歴と集計の確認
+- COMポートとRFID runtime状態の確認
+
+FastAPIは`127.0.0.1:8000`、Vite開発サーバーは`127.0.0.1:5173`に限定します。CUIとWebは同じSQLiteファイルおよびシリアルポートを使用するため、同時に操作しないでください。認証、LAN/Internet公開、複数利用者、SSE/WebSocket、DBスキーマ移行は対象外です。
+
+### Web版の起動
+
+WebバックエンドはPython 3.12系、フロントエンドはNode.jsとpnpmを使用します。既存CUI用のルート`.venv`は変更せず、Web専用環境を作成してください。
+
+```powershell
+cd "<プロジェクトルート>"
+py -3.12 -m venv .\web\backend\.venv
+& .\web\backend\.venv\Scripts\python.exe -m pip install -r .\web\backend\requirements-web.txt
+```
+
+今回のWindows PowerShell環境で確実に動作確認できたバックエンドの直接起動方法は、次のとおりです。
+
+```powershell
+cd "<プロジェクトルート>\web\backend"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+別のPowerShellでフロントエンドを起動します。
+
+```powershell
+cd "<プロジェクトルート>\web\frontend"
+pnpm.cmd install --ignore-scripts
+pnpm.cmd dev
+```
+
+アクセス先は次のとおりです。
+
+- Web管理画面：`http://127.0.0.1:5173`
+- FastAPI APIドキュメント：`http://127.0.0.1:8000/docs`
+
+`web/start-backend.ps1`は、今回のWindows PowerShell環境で文字列終端に関するParserErrorが発生したため、現状の確実な手順では上記の直接起動コマンドを優先します。起動スクリプトが存在することだけを根拠に、ワンボタン起動対応済みとは扱いません。今回の作業では起動スクリプトの大規模改修やワンボタン起動機能の新規実装は行っていません。
+
+フロントエンドの本番ビルドは`web\build-frontend.ps1`、生成後の静的ファイルはFastAPIからも配信できます。`attendance.db`、仮想環境、`node_modules`、`dist`、キャッシュは`.gitignore`で追跡対象外です。
+
+### Web版のテスト結果
+
+- 既存DB回帰テスト：`19 tests OK`
+- Web API / MOCK runtime / FakeSerial runtime：`4 passed`
+- フロントエンドTypeScript型チェック：`PASS`
+- Vite本番ビルド：`PASS`
+- 実COMポート・Arduinoを使った今回の再検証：`NOT RUN`
+
+上記のWebテストは一時SQLite DBを使用し、運用中の`attendance.db`を変更しません。実COMポートを使う場合は、先にCUIを終了し、対象ポートが他のアプリで開かれていないことを確認してください。
+
+Windows上でのFastAPI・Viteの起動およびダッシュボード表示は、ユーザーによる確認結果として記録しています。今回のWorkでは、実機を接続したWeb版の結合試験、Web画面を通じた全業務フローの受入試験、複数学生・通信切断・障害復旧の再検証は行っていません。
+
+### 実機確認の記録と既知の課題
+
+2026年10月20日に、ユーザーによるMaker UNO Rev 1.1 + RC522の実機テストで、次を確認済みです。これはユーザーによる確認結果であり、今回のWeb実装Workが再検証した結果ではありません。
+
+- RFIDカードのUID読み取り
+- 同一カードの連続送信防止
+- PythonとArduinoのシリアル通信
+- 学生登録、授業登録、履修登録
+- 出席受付、受付終了、出欠履歴確認
+
+RC522については、`VersionReg=0x82`となる既知の課題があります。Arduinoソースでは診断用セルフテストバイパスが有効な状態です。セルフテスト失敗だけでハードウェア故障とは断定せず、SPI応答、再初期化、実際のUID読み取りを分けて判断してください。
+
+次の項目は未検証または既知の課題です。
+
+- 複数学生・複数カードによる長時間運用
+- USB抜去、シリアル通信切断、再接続、Arduino自動リセット後の障害復旧
+- RC522の電源条件、信号電圧、正確なモジュール型番
+- WebとCUIを同時に使用した場合の運用
+- 今回のWorkでの実COMポート接続、実機カード読み取り

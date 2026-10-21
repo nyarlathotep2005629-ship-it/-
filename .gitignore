@@ -27,3 +27,11 @@ htmlcov/
 !.env.example
 *.log
 /rfid_phase5_source.zip
+
+# Web版のローカル依存関係・ビルド生成物
+/web/backend/.venv/
+/web/backend/.pytest_cache/
+/web/frontend/node_modules/
+/web/frontend/dist/
+/web/frontend/.vite/
+*.tsbuildinfo
