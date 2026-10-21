@@ -83,3 +83,61 @@ def test_mock_runtime_rejects_second_start_and_supports_cursor_reset(tmp_path: P
     controller.stop()
     batch = controller.events(None, 0, 100)
     assert batch["reset_required"] is True
+
+
+def test_registration_worker_emits_completion_and_records_operation(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "registration.db"
+    monkeypatch.setattr(rfid_runtime, "SerialReader", FakeSerialReader)
+    controller = RfidRuntimeController(Settings(db_path=db_path, stop_timeout=1.0))
+
+    started = controller.start_registration("RFID登録学生", "FAKE")
+    operation_id = started["operation_id"]
+    wait_for(
+        lambda: any(
+            event["kind"] == "REGISTRATION_COMPLETED"
+            and event["operation_id"] == operation_id
+            for event in controller.events(None, 0, 100)["events"]
+        )
+    )
+
+    status = controller.snapshot()
+    assert status["state"] == "IDLE"
+    assert status["operation_id"] is None
+    assert status["last_completed_operation_id"] == operation_id
+    assert status["last_terminal_event_kind"] == "REGISTRATION_COMPLETED"
+
+    connection = database.open_database(db_path)
+    try:
+        assert database.list_students(connection)[0]["name"] == "RFID登録学生"
+    finally:
+        connection.close()
+
+
+def test_close_is_rejected_while_mock_runtime_is_active(tmp_path: Path) -> None:
+    db_path = tmp_path / "close.db"
+    session_id = prepare_database(db_path)
+    controller = RfidRuntimeController(Settings(db_path=db_path))
+    controller.start_attendance(session_id, "MOCK", None)
+    try:
+        try:
+            controller.close_session(session_id)
+            raise AssertionError("active runtime was closed")
+        except Exception as exc:
+            assert getattr(exc, "code", None) == "RFID_RUNTIME_ACTIVE"
+    finally:
+        controller.stop()
+
+    assert controller.close_session(session_id)["status"] == "CLOSED"
+
+
+def test_event_cursor_rejects_previous_server_instance(tmp_path: Path) -> None:
+    db_path = tmp_path / "server-instance.db"
+    session_id = prepare_database(db_path)
+    controller = RfidRuntimeController(Settings(db_path=db_path))
+    controller.start_attendance(session_id, "MOCK", None)
+    try:
+        batch = controller.events("previous-server-instance", 0, 100)
+        assert batch["reset_required"] is True
+        assert batch["server_instance_id"] != "previous-server-instance"
+    finally:
+        controller.stop()
