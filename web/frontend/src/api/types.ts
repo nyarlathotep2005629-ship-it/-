@@ -1,5 +1,5 @@
 export type RuntimeState = "IDLE" | "STARTING" | "REGISTERING" | "ATTENDING" | "STOPPING" | "ERROR";
-export type RuntimeMode = "MOCK" | "SERIAL";
+export type RuntimeMode = "MOCK" | "SERIAL" | "ESP32";
 
 export interface Student {
   student_id: number;

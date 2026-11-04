@@ -2,12 +2,24 @@
 #include <MFRC522.h>
 #include <SPI.h>
 #include <string.h>
+#ifdef USE_ESP_UART
+#include <SoftwareSerial.h>
+#endif
 
 namespace {
 
 constexpr byte RFID_SS_PIN = 10;   // RC522 SDA/SS -> Uno D10
 constexpr byte RFID_RST_PIN = 9;   // RC522 RST -> Uno D9
+#ifdef USE_ESP_UART
+constexpr unsigned long SERIAL_BAUD = 9600;
+constexpr byte ESP_RX_PIN = 2;
+constexpr byte ESP_TX_PIN = 3;
+SoftwareSerial espLink(ESP_RX_PIN, ESP_TX_PIN);
+#define LINK_SERIAL espLink
+#else
 constexpr unsigned long SERIAL_BAUD = 115200;
+#define LINK_SERIAL Serial
+#endif
 
 // 通常運用ではfalseのままにする。trueはセルフテスト失敗後の
 // カード読み取り可否を切り分ける診断ビルド専用。
@@ -39,8 +51,8 @@ unsigned long lastCardSeenAt = 0;
 unsigned long lastUidSentAt = 0;
 
 void sendLine(const __FlashStringHelper* message) {
-  Serial.print(message);
-  Serial.write('\n');
+  LINK_SERIAL.print(message);
+  LINK_SERIAL.write('\n');
 }
 
 bool isSupportedUidSize(byte uidSize) {
@@ -70,13 +82,13 @@ void rememberUid(const MFRC522::Uid& uid, unsigned long now) {
 }
 
 void sendUid(const MFRC522::Uid& uid) {
-  Serial.print(F("UID:"));
+  LINK_SERIAL.print(F("UID:"));
   for (byte index = 0; index < uid.size; ++index) {
     const byte value = uid.uidByte[index];
-    Serial.write(HEX_DIGITS[(value >> 4) & 0x0F]);
-    Serial.write(HEX_DIGITS[value & 0x0F]);
+    LINK_SERIAL.write(HEX_DIGITS[(value >> 4) & 0x0F]);
+    LINK_SERIAL.write(HEX_DIGITS[value & 0x0F]);
   }
-  Serial.write('\n');
+  LINK_SERIAL.write('\n');
 }
 
 void releaseSuppressedUidIfCardIsAbsent(unsigned long now) {
@@ -102,8 +114,8 @@ void handleSerialCommand(const char* command) {
 }
 
 void readSerialCommands() {
-  while (Serial.available() > 0) {
-    const char received = static_cast<char>(Serial.read());
+  while (LINK_SERIAL.available() > 0) {
+    const char received = static_cast<char>(LINK_SERIAL.read());
 
     if (received == '\r') {
       continue;
@@ -129,15 +141,15 @@ void readSerialCommands() {
 
 void printHexByte(byte value) {
   if (value < 0x10) {
-    Serial.write('0');
+    LINK_SERIAL.write('0');
   }
-  Serial.print(value, HEX);
+  LINK_SERIAL.print(value, HEX);
 }
 
 void sendVersionDiagnostic(byte version) {
-  Serial.print(F("DIAG:RC522_VERSION=0x"));
+  LINK_SERIAL.print(F("DIAG:RC522_VERSION=0x"));
   printHexByte(version);
-  Serial.write('\n');
+  LINK_SERIAL.write('\n');
 
   if (version == 0x91 || version == 0x92) {
     sendLine(F("DIAG:RC522_VERSION_CLASS=MFRC522"));
@@ -182,9 +194,9 @@ bool initializeRfid() {
     rfid.PCD_Init();
     const byte reinitializedVersion =
         rfid.PCD_ReadRegister(MFRC522::VersionReg);
-    Serial.print(F("DIAG:RC522_REINIT_VERSION=0x"));
+    LINK_SERIAL.print(F("DIAG:RC522_REINIT_VERSION=0x"));
     printHexByte(reinitializedVersion);
-    Serial.write('\n');
+    LINK_SERIAL.write('\n');
 
     if (reinitializedVersion == 0x00 || reinitializedVersion == 0xFF) {
       sendLine(F("DIAG:RC522_REINIT=FAIL"));
@@ -235,7 +247,12 @@ void pollRfid() {
 }  // namespace
 
 void setup() {
-  Serial.begin(SERIAL_BAUD);
+#ifdef USE_ESP_UART
+  Serial.begin(115200);
+  LINK_SERIAL.begin(SERIAL_BAUD);
+#else
+  LINK_SERIAL.begin(SERIAL_BAUD);
+#endif
   sendLine(F("DIAG:PIN_CONFIG=SS:D10,RST:D9,SPI:D11/D12/D13"));
   sendLine(F("DIAG:SPI_START"));
   SPI.begin();

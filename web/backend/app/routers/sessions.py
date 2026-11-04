@@ -9,6 +9,7 @@ from ..dependencies import get_runtime_controller, get_settings
 from ..errors import ApiError
 from ..schemas import MockScanRequest, RuntimeStartRequest, SessionCreateRequest
 from ..services import database_service
+from .devices import finish_bound_session
 from ..services.rfid_runtime import RfidRuntimeController
 
 router = APIRouter(tags=["sessions", "attendance"])
@@ -27,8 +28,10 @@ def post_session(payload: SessionCreateRequest, settings: Settings = Depends(get
 @router.post("/sessions/{session_id}/close")
 def post_close_session(
     session_id: int,
+    settings: Settings = Depends(get_settings),
     controller: RfidRuntimeController = Depends(get_runtime_controller),
 ):
+    finish_bound_session(session_id, settings)
     return controller.close_session(session_id)
 
 
