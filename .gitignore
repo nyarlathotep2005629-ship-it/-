@@ -25,6 +25,7 @@ htmlcov/
 .env
 .env.*
 !.env.example
+**/device-pairing.json
 *.log
 /rfid_phase5_source.zip
 
@@ -35,3 +36,10 @@ htmlcov/
 /web/frontend/dist/
 /web/frontend/.vite/
 *.tsbuildinfo
+/Data/
+/data/showcase/
+*.spec-local
+/.build-venv/
+/build/
+/web/dist/
+/.test-tmp/

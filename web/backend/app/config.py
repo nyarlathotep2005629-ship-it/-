@@ -28,6 +28,11 @@ class Settings:
     stop_timeout: float = 3.0
     event_buffer_size: int = 200
     server_instance_id: str = ""
+    device_base_url: str = "http://192.168.4.1"
+    device_id: str = ""
+    device_token: str = ""
+    device_timeout: float = 2.0
+    demo_mode: bool = False
 
     def __post_init__(self) -> None:
         if not self.server_instance_id:
@@ -38,4 +43,12 @@ def settings_from_environment() -> Settings:
     """明示的な環境変数だけを上書きとして受け付ける。"""
 
     db_value = os.environ.get("RFID_ATTENDANCE_DB")
-    return Settings(db_path=Path(db_value) if db_value else PROJECT_ROOT / "attendance.db")
+    demo_mode = os.environ.get("RFID_ATTENDANCE_MODE", "development").lower() == "showcase"
+    default_db = PROJECT_ROOT / "data" / "showcase" / "attendance.db" if demo_mode else PROJECT_ROOT / "attendance.db"
+    return Settings(
+        db_path=Path(db_value) if db_value else default_db,
+        device_base_url=os.environ.get("RFID_DEVICE_URL", "http://192.168.4.1").rstrip("/"),
+        device_id=os.environ.get("RFID_DEVICE_ID", ""),
+        device_token=os.environ.get("RFID_DEVICE_TOKEN", ""),
+        demo_mode=demo_mode,
+    )
